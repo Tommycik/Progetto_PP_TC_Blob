@@ -3,7 +3,7 @@
 
 #include "Common.hpp"
 #include "Kernels.cuh"
-
+// Usa la gpu per trovare i blob
 std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, int imageWidth, int imageHeight, float threshold, int blockSizeX, int blockSizeY) {
     //calcola numero di pixel dell'immagine e il peso in byte
     size_t totalPixels = (size_t)imageWidth * imageHeight;

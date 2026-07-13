@@ -1,5 +1,5 @@
-#include "Common.h"
-#include "CpuPipelines.h"
+#include "Common.hpp"
+#include "CpuPipelines.hpp"
 #include "GpuPipelines.cuh"
 #include <chrono>
 #include <iomanip>
@@ -121,7 +121,7 @@ void runGUI() {
         }
     }
 
-    float threshold = 0.0005f;
+    float threshold = 0.0001f;
     std::vector<float> blobMap = runCudaSingleTest(hostLuminance, size.x, size.y, threshold, 16, 16);
 
     sf::Image resultImage; resultImage.create(size.x, size.y);

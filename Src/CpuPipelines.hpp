@@ -5,30 +5,44 @@
 #include <cmath>
 #include <omp.h>
 
+//sfocatura gausiana
 void cpuGaussianBlur(const std::vector<float>& sourceImage, std::vector<float>& destinationImage, int imageWidth, int imageHeight, float sigma) {
+    //calcola raggio e alloca memoria per immagine temporanea
     int kernelRadius = ceilf(3.0f * sigma);
     std::vector<float> temporaryBuffer((size_t)imageWidth * imageHeight);
+    //sfocatura orizzontale
     for (int positionY = 0; positionY < imageHeight; ++positionY) {
         for (int positionX = 0; positionX < imageWidth; ++positionX) {
             float pixelSum = 0.0f, totalWeight = 0.0f;
+            //ciclo per considerare i pixel adiacenti in orizzontale
             for (int deltaX = -kernelRadius; deltaX <= kernelRadius; ++deltaX) {
+                //calcola posizione del vicino
                 int neighborX = std::min(std::max(positionX + deltaX, 0), imageWidth - 1);
+                //calcola peso in base alla distanza dal pixel centrale
                 float weight = std::exp(-(deltaX * deltaX) / (2.0f * sigma * sigma));
+                //calcola la somma pesata dei pixel adiacenti e la somma dei pesi
                 pixelSum += sourceImage[(size_t)positionY * imageWidth + neighborX] * weight; 
                 totalWeight += weight;
             }
+            //calcola il valore finale del pixel e lo salva nella destinazione temporanea
             temporaryBuffer[(size_t)positionY * imageWidth + positionX] = pixelSum / totalWeight;
         }
     }
+    //sfocatura verticale
     for (int positionY = 0; positionY < imageHeight; ++positionY) {
         for (int positionX = 0; positionX < imageWidth; ++positionX) {
             float pixelSum = 0.0f, totalWeight = 0.0f;
+            //ciclo per considerare i pixel adiacenti in verticale
             for (int deltaY = -kernelRadius; deltaY <= kernelRadius; ++deltaY) {
+                //calcola posizione del vicino
                 int neighborY = std::min(std::max(positionY + deltaY, 0), imageHeight - 1);
+                //calcola peso in base alla distanza dal pixel centrale
                 float weight = std::exp(-(deltaY * deltaY) / (2.0f * sigma * sigma));
+                //calcola la somma pesata dei pixel adiacenti e la somma dei pesi
                 pixelSum += temporaryBuffer[(size_t)neighborY * imageWidth + positionX] * weight; 
                 totalWeight += weight;
             }
+            //calcola il valore finale del pixel e lo salva nella destinazione finale
             destinationImage[(size_t)positionY * imageWidth + positionX] = pixelSum / totalWeight;
         }
     }

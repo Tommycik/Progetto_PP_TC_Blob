@@ -11,7 +11,7 @@
 
 const int NUM_SCALES = 6;
 const int NUM_DOGS = NUM_SCALES - 1;
-const float SIGMA_BASE = 1.05f;
-const float K_FACTOR = 1.45f;
+const float SIGMA_BASE = 0.8f;
+const float K_FACTOR = 1.26;
 
 #endif

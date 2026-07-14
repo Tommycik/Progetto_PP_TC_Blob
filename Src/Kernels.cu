@@ -83,8 +83,8 @@ __global__ void findExtremaKernel(const float* spaceDogs, float* outputMap, int 
                     int neighborX = positionX + deltaX;
                     int neighborY = positionY + deltaY;
                     float neighborValue = spaceDogs[layerOffset + (size_t)neighborY * imageWidth + neighborX];
-                    if (neighborValue >= centerValue) isMaximum = false;
-                    if (neighborValue <= centerValue) isMinimum = false;
+                    if (neighborValue > centerValue) isMaximum = false;
+                    if (neighborValue < centerValue) isMinimum = false;
                 }
             }
         }
@@ -94,4 +94,47 @@ __global__ void findExtremaKernel(const float* spaceDogs, float* outputMap, int 
             break;
         }
     }
+}
+
+// Non-Maximum Suppression Spaziale
+__global__ void nmsKernel(const float* extremaMap, float* finalOutput, int imageWidth, int imageHeight, int radius) {
+    // calcola posizione del pixel e evita accessi illegali alla memoria
+    int positionX = blockIdx.x * blockDim.x + threadIdx.x;
+    int positionY = blockIdx.y * blockDim.y + threadIdx.y;
+    if (positionX >= imageWidth || positionY >= imageHeight) return;
+
+    size_t pixelIndex = (size_t)positionY * imageWidth + positionX;
+    float currentStrength = extremaMap[pixelIndex];
+
+    // Se non era un candidato blob lascia 0 ed esce
+    if (currentStrength == 0.0f) {
+        finalOutput[pixelIndex] = 0.0f;
+        return;
+    }
+
+    bool isLocalMax = true;
+
+    // controlla la finestra spaziale attorno al pixel
+    for (int deltaY = -radius; deltaY <= radius; ++deltaY) {
+        int neighborY = positionY + deltaY;
+        if (neighborY < 0 || neighborY >= imageHeight) continue;
+
+        for (int deltaX = -radius; deltaX <= radius; ++deltaX) {
+            int neighborX = positionX + deltaX;
+            if (neighborX < 0 || neighborX >= imageWidth) continue;
+            if (deltaX == 0 && deltaY == 0) continue;
+
+            float neighborStrength = extremaMap[(size_t)neighborY * imageWidth + neighborX];
+
+            // se un vicino ha una risposta DoG più forte sopprime questo blob
+            if (neighborStrength > currentStrength) {
+                isLocalMax = false;
+                break;
+            }
+        }
+        if (!isLocalMax) break;
+    }
+
+    // Se è il massimo locale della finestra diventa un blob definitivo (1.0f)
+    finalOutput[pixelIndex] = isLocalMax ? 1.0f : 0.0f;
 }

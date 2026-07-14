@@ -9,12 +9,14 @@ std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, in
     size_t totalPixels = (size_t)imageWidth * imageHeight;
     size_t layerBytes = totalPixels * sizeof(float);
     //alloca memoria sul device e copia i dati
-    float *deviceLuminance, *deviceTemporary, *deviceGaussians, *deviceDogs, *deviceOutput;
+    float *deviceLuminance, *deviceTemporary, *deviceGaussians, *deviceDogs, *deviceOutput, *deviceExtremaMap;
 
     cudaMalloc(&deviceLuminance, layerBytes);
     cudaMalloc(&deviceTemporary, layerBytes);
     cudaMalloc(&deviceOutput, layerBytes);
+    cudaMalloc(&deviceExtremaMap, layerBytes);
     cudaMemset(deviceOutput, 0, layerBytes);
+    cudaMemset(deviceExtremaMap, 0, layerBytes);
     cudaMemcpy(deviceLuminance, hostLuminance.data(), layerBytes, cudaMemcpyHostToDevice);
     cudaMalloc(&deviceGaussians, layerBytes * NUM_SCALES);
     cudaMalloc(&deviceDogs, layerBytes * NUM_DOGS);
@@ -34,7 +36,10 @@ std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, in
     //calcola i Dogs
     for (int i = 0; i < NUM_DOGS; ++i) computeDoGKernel<<<gridSize, blockSize>>>(deviceGaussians, deviceDogs, i, imageWidth, imageHeight);
     //trova i massimi
-    findExtremaKernel<<<gridSize, blockSize>>>(deviceDogs, deviceOutput, imageWidth, imageHeight, threshold, NUM_DOGS);
+    findExtremaKernel<<<gridSize, blockSize>>>(deviceDogs, deviceExtremaMap, imageWidth, imageHeight, threshold, NUM_DOGS);
+    //esegue il Non-Maximum Suppression (Raggio 4 = Finestra 9x9)
+    int nmsRadius = 4;
+    nmsKernel<<<gridSize, blockSize>>>(deviceExtremaMap, deviceOutput, imageWidth, imageHeight, nmsRadius);
     // alloca memoria per i dati di output
     std::vector<float> cudaOutput(totalPixels, 0.0f);
     // copia i risultati dal device all'host
@@ -46,6 +51,7 @@ std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, in
     cudaFree(deviceTemporary);
     cudaFree(deviceOutput);
     cudaFree(deviceGaussians);
+    cudaFree(deviceExtremaMap);
     cudaFree(deviceDogs);
     return cudaOutput;
 }

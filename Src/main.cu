@@ -117,7 +117,7 @@ void runBenchmark() {
 // esegue la pipeline GUI
 void runGUI() {
     // parametri iniziali
-    int blobRadius = 10;
+    int blobRadius = 5;
     // carica l'immagine e ne calcola la luminosità e dimensione in pixel
     sf::Image inputImage; if (!inputImage.loadFromFile("../input.png")) return;
     sf::Vector2u size = inputImage.getSize(); size_t totalPixels = (size_t)size.x * size.y;
@@ -130,7 +130,7 @@ void runGUI() {
         }
     }
 
-    float threshold = 0.0001f;
+    float threshold = 0.008f;
     // esegue la pipeline CUDA
     std::vector<float> blobMap = runCudaSingleTest(hostLuminance, size.x, size.y, threshold, 16, 16);
     // crea l'immagine finale da quella inziiale ma riducendo la luminosità per dare contrasto ai blob

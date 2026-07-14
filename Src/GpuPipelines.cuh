@@ -10,7 +10,7 @@ std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, in
     size_t layerBytes = totalPixels * sizeof(float);
     //alloca memoria sul device e copia i dati
     float *deviceLuminance, *deviceTemporary, *deviceGaussians, *deviceDogs, *deviceOutput;
-    
+
     cudaMalloc(&deviceLuminance, layerBytes);
     cudaMalloc(&deviceTemporary, layerBytes);
     cudaMalloc(&deviceOutput, layerBytes);
@@ -19,7 +19,7 @@ std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, in
     cudaMalloc(&deviceGaussians, layerBytes * NUM_SCALES);
     cudaMalloc(&deviceDogs, layerBytes * NUM_DOGS);
     // calcola dimensione blocco e griglia dei thread
-    dim3 blockSize(blockSizeX, blockSizeY); 
+    dim3 blockSize(blockSizeX, blockSizeY);
     dim3 gridSize((imageWidth + blockSizeX - 1) / blockSizeX, (imageHeight + blockSizeY - 1) / blockSizeY);
     // calcola i gaussiani
     for (int i = 0; i < NUM_SCALES; ++i) {
@@ -34,7 +34,7 @@ std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, in
     //calcola i Dogs
     for (int i = 0; i < NUM_DOGS; ++i) computeDoGKernel<<<gridSize, blockSize>>>(deviceGaussians, deviceDogs, i, imageWidth, imageHeight);
     //trova i massimi
-    findExtremaKernel<<<gridSize, blockSize>>>(deviceDogs, deviceOutput, imageWidth, imageHeight, threshold);
+    findExtremaKernel<<<gridSize, blockSize>>>(deviceDogs, deviceOutput, imageWidth, imageHeight, threshold, NUM_DOGS);
     // alloca memoria per i dati di output
     std::vector<float> cudaOutput(totalPixels, 0.0f);
     // copia i risultati dal device all'host
@@ -42,8 +42,11 @@ std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, in
     // sincronizza il device
     cudaDeviceSynchronize();
     // libera memoria sul device
-    cudaFree(deviceLuminance); cudaFree(deviceTemporary); cudaFree(deviceOutput); 
-    cudaFree(deviceGaussians); cudaFree(deviceDogs);
+    cudaFree(deviceLuminance);
+    cudaFree(deviceTemporary);
+    cudaFree(deviceOutput);
+    cudaFree(deviceGaussians);
+    cudaFree(deviceDogs);
     return cudaOutput;
 }
 

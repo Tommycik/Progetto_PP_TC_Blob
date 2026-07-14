@@ -47,27 +47,33 @@ __global__ void computeDoGKernel(const float* spaceGaussians, float* spaceDogs, 
     spaceDogs[(size_t)layerIndex * layerStride + pixelIndex] = globalGaussian2 - globalGaussian1;
 }
 
-__global__ void findExtremaKernel(const float* spaceDogs, float* outputMap, int imageWidth, int imageHeight, float threshold) {
+__global__ void findExtremaKernel(const float* spaceDogs, float* outputMap, int imageWidth, int imageHeight, float threshold, int numDogs) {
     int positionX = blockIdx.x * blockDim.x + threadIdx.x;
     int positionY = blockIdx.y * blockDim.y + threadIdx.y;
     if (positionX <= 0 || positionX >= imageWidth - 1 || positionY <= 0 || positionY >= imageHeight - 1) return;
     size_t layerStride = (size_t)imageWidth * imageHeight;
     size_t pixelIndex = (size_t)positionY * imageWidth + positionX;
-    float centerValue = spaceDogs[1 * layerStride + pixelIndex];
-    if (fabsf(centerValue) < threshold) return;
-    bool isMaximum = true, isMinimum = true;
-    for (int scale = 0; scale < 3; ++scale) {
-        size_t layerOffset = (size_t)scale * layerStride;
-        for (int deltaY = -1; deltaY <= 1; ++deltaY) {
-            for (int deltaX = -1; deltaX <= 1; ++deltaX) {
-                if (scale == 1 && deltaX == 0 && deltaY == 0) continue;
-                int neighborX = positionX + deltaX; 
-                int neighborY = positionY + deltaY;
-                float neighborValue = spaceDogs[layerOffset + (size_t)neighborY * imageWidth + neighborX];
-                if (neighborValue >= centerValue) isMaximum = false; 
-                if (neighborValue <= centerValue) isMinimum = false;
+
+    for (int dogIdx = 1; dogIdx < numDogs - 1; ++dogIdx) {
+        float centerValue = spaceDogs[(size_t)dogIdx * layerStride + pixelIndex];
+        if (fabsf(centerValue) < threshold) continue;
+        bool isMaximum = true, isMinimum = true;
+        for (int scale = dogIdx - 1; scale <= dogIdx + 1; ++scale) {
+            size_t layerOffset = (size_t)scale * layerStride;
+            for (int deltaY = -1; deltaY <= 1; ++deltaY) {
+                for (int deltaX = -1; deltaX <= 1; ++deltaX) {
+                    if (scale == dogIdx && deltaX == 0 && deltaY == 0) continue;
+                    int neighborX = positionX + deltaX;
+                    int neighborY = positionY + deltaY;
+                    float neighborValue = spaceDogs[layerOffset + (size_t)neighborY * imageWidth + neighborX];
+                    if (neighborValue >= centerValue) isMaximum = false;
+                    if (neighborValue <= centerValue) isMinimum = false;
+                }
             }
         }
+        if (isMaximum || isMinimum) {
+            outputMap[pixelIndex] = 1.0f;
+            break;
+        }
     }
-    if (isMaximum || isMinimum) outputMap[pixelIndex] = 1.0f;
 }

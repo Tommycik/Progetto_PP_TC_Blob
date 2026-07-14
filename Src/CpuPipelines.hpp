@@ -71,27 +71,33 @@ std::vector<float> runCPUImplementation(const std::vector<float>& hostLuminance,
         for (int positionX = 1; positionX < imageWidth - 1; ++positionX) {
             //calcola l'indice del pixel
             size_t pixelIndex = (size_t)positionY * imageWidth + positionX;
-            //ottiene il valore del pixel
-            float centerValue = scaleDogs[1][pixelIndex];
-            //se il valore assoluto è inferiore al threshold, non considera il pixel
-            if (std::abs(centerValue) < threshold) continue;
-            bool isMaximum = true, isMinimum = true;
-            //ciclo per trovare i massimi e i minimi nei 26 pixel vicini
-            for (int scale = 0; scale < 3; ++scale) {
-                for (int deltaY = -1; deltaY <= 1; ++deltaY) {
-                    for (int deltaX = -1; deltaX <= 1; ++deltaX) {
-                        //ignora il pixel centrale
-                        if (scale == 1 && deltaX == 0 && deltaY == 0) continue;
-                        //ottiene il valore del vicino
-                        float neighborValue = scaleDogs[scale][(size_t)(positionY + deltaY) * imageWidth + (positionX + deltaX)];
-                        //se il vicino è maggiore o minore del pixel centrale, non è un massimo o minimo
-                        if (neighborValue >= centerValue) isMaximum = false; 
-                        if (neighborValue <= centerValue) isMinimum = false;
+
+            for (int dogIdx = 1; dogIdx < NUM_DOGS - 1; ++dogIdx) {
+                //ottiene il valore del pixel
+                float centerValue = scaleDogs[dogIdx][pixelIndex];
+                //se il valore assoluto è inferiore al threshold, non considera il pixel
+                if (std::abs(centerValue) < threshold) continue;
+                bool isMaximum = true, isMinimum = true;
+                //ciclo per trovare i massimi e i minimi nei 26 pixel vicini
+                for (int scale = dogIdx - 1; scale <= dogIdx + 1; ++scale) {
+                    for (int deltaY = -1; deltaY <= 1; ++deltaY) {
+                        for (int deltaX = -1; deltaX <= 1; ++deltaX) {
+                            //ignora il pixel centrale
+                            if (scale == dogIdx && deltaX == 0 && deltaY == 0) continue;
+                            //ottiene il valore del vicino
+                            float neighborValue = scaleDogs[scale][(size_t)(positionY + deltaY) * imageWidth + (positionX + deltaX)];
+                            //se il vicino è maggiore o minore del pixel centrale, non è un massimo o minimo
+                            if (neighborValue >= centerValue) isMaximum = false;
+                            if (neighborValue <= centerValue) isMinimum = false;
+                        }
                     }
                 }
+                //se è un massimo o minimo, lo salva in output
+                if (isMaximum || isMinimum) {
+                    referenceOutput[pixelIndex] = 1.0f;
+                    break;
+                }
             }
-            //se è un massimo o minimo, lo salva in output
-            if (isMaximum || isMinimum) referenceOutput[pixelIndex] = 1.0f;
         }
     }
     return referenceOutput;
@@ -158,31 +164,37 @@ std::vector<float> runOpenMPImplementation(const std::vector<float>& hostLuminan
         }
     }
     // trova i blob in modo parallelo
-    #pragma omp parallel for simd collapse(2)
+    #pragma omp parallel for collapse(2)
     for (int positionY = 1; positionY < imageHeight - 1; ++positionY) {
         for (int positionX = 1; positionX < imageWidth - 1; ++positionX) {
             // calcola l'indice del pixel
             size_t pixelIndex = (size_t)positionY * imageWidth + positionX;
-            // ottiene il valore del pixel
-            float centerValue = scaleDogs[1][pixelIndex];
-            // se il valore del pixel è inferiore al threshold, salta il pixel
-            if (std::abs(centerValue) < threshold) continue;
-            bool isMaximum = true, isMinimum = true;
-            // trova i massimi e i minimi nei 26 vicini
-            for (int scale = 0; scale < 3; ++scale) {
-                for (int deltaY = -1; deltaY <= 1; ++deltaY) {
-                    for (int deltaX = -1; deltaX <= 1; ++deltaX) {
-                        // salta il pixel centrale
-                        if (scale == 1 && deltaX == 0 && deltaY == 0) continue;
-                        // ottiene il valore del vicino
-                        float neighborValue = scaleDogs[scale][(size_t)(positionY + deltaY) * imageWidth + (positionX + deltaX)];
-                        if (neighborValue >= centerValue) isMaximum = false; 
-                        if (neighborValue <= centerValue) isMinimum = false;
+
+            for (int dogIdx = 1; dogIdx < NUM_DOGS - 1; ++dogIdx) {
+                // ottiene il valore del pixel
+                float centerValue = scaleDogs[dogIdx][pixelIndex];
+                // se il valore del pixel è inferiore al threshold, salta il pixel
+                if (std::abs(centerValue) < threshold) continue;
+                bool isMaximum = true, isMinimum = true;
+                // trova i massimi e i minimi nei 26 vicini
+                for (int scale = dogIdx - 1; scale <= dogIdx + 1; ++scale) {
+                    for (int deltaY = -1; deltaY <= 1; ++deltaY) {
+                        for (int deltaX = -1; deltaX <= 1; ++deltaX) {
+                            // salta il pixel centrale
+                            if (scale == dogIdx && deltaX == 0 && deltaY == 0) continue;
+                            // ottiene il valore del vicino
+                            float neighborValue = scaleDogs[scale][(size_t)(positionY + deltaY) * imageWidth + (positionX + deltaX)];
+                            if (neighborValue >= centerValue) isMaximum = false;
+                            if (neighborValue <= centerValue) isMinimum = false;
+                        }
                     }
                 }
+                // se il pixel è un massimo o un minimo lo aggiunge all'output
+                if (isMaximum || isMinimum) {
+                    openmpOutput[pixelIndex] = 1.0f;
+                    break;
+                }
             }
-            // se il pixel è un massimo o un minimo lo aggiunge all'output
-            if (isMaximum || isMinimum) openmpOutput[pixelIndex] = 1.0f;
         }
     }
     return openmpOutput;

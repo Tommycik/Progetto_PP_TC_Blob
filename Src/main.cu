@@ -6,106 +6,208 @@
 #include <fstream>
 #include <iostream>
 #include <SFML/Graphics.hpp>
+#include <numeric>
 
+// calcola la deviazione standard dei tempi di esecuzione per valutare la stabilità
+double calculateStdDev(const std::vector<double>& times, double mean) {
+    double sum = 0.0;
+    for (double t : times) {
+        sum += (t - mean) * (t - mean);
+    }
+    return std::sqrt(sum / times.size());
+}
+// controlla se esistono le immagini a risoluzione crescente e, se manca qualcosa, le genera a partire da quella 512x512
+void checkAndGenerateImages() {
+    sf::Image sourceImage;
+    // prova a caricare l'immagine base da 512x512 pixel
+    if (!sourceImage.loadFromFile("../images/input_512.png")) {
+        std::cout << "Errore: Immagine base '../images/input_512.png' non trovata! Scaricala prima di avviare." << std::endl;
+        return;
+    }
+
+    std::vector<unsigned int> targetSizes = {1024, 2048, 4096};
+
+    // scorre le dimensioni target per verificare se i rispettivi file esistono già
+    for (unsigned int targetSize : targetSizes) {
+        std::string targetPath = "../images/input_" + std::to_string(targetSize) + ".png";
+        sf::Image checkImg;
+
+        // se l'immagine non esiste, la genera effettuando il ridimensionamento
+        if (!checkImg.loadFromFile(targetPath)) {
+            std::cout << "Generazione: Creazione immagine in corso: " << targetPath << std::endl;
+
+            // mappa i pixel per scalare l'immagine con una interpolazione bilineare
+            sf::Image resizedImage;
+            resizedImage.create(targetSize, targetSize);
+
+            for (unsigned int y = 0; y < targetSize; ++y) {
+                for (unsigned int x = 0; x < targetSize; ++x) {
+                    // calcola le coordinate corrispondenti sull'immagine sorgente originale
+                    float sourceX = (static_cast<float>(x) / targetSize) * 512.0f;
+                    float sourceY = (static_cast<float>(y) / targetSize) * 512.0f;
+
+                    unsigned int x0 = std::min(static_cast<unsigned int>(std::floor(sourceX)), 511u);
+                    unsigned int y0 = std::min(static_cast<unsigned int>(std::floor(sourceY)), 511u);
+
+                    // assegna il pixel campionato all'immagine a risoluzione maggiore
+                    resizedImage.setPixel(x, y, sourceImage.getPixel(x0, y0));
+                }
+            }
+            // salva il file generato su disco nella cartella prestabilita
+            resizedImage.saveToFile(targetPath);
+        }
+    }
+}
 // benchmark
 void runBenchmark() {
-    // carica l'immagine da processare e calcola la luminanza e le dimensioni in pixel
-    sf::Image inputImage; if (!inputImage.loadFromFile("../input.png")) return;
-    sf::Vector2u size = inputImage.getSize(); size_t totalPixels = (size_t)size.x * size.y;
-    std::vector<float> hostLuminance(totalPixels);
-    for (unsigned int y = 0; y < size.y; ++y) {
-        for (unsigned int x = 0; x < size.x; ++x) {
-            sf::Color color = inputImage.getPixel(x, y);
-            // calcola la luminanza del pixel estraendo i canali di colore
-            hostLuminance[(size_t)y * size.x + x] = (0.299f * color.r + 0.587f * color.g + 0.114f * color.b) / 255.0f;
-        }
-    }
-    float threshold = 0.0005f;
     const int RUNS = 5;
-    // avvia il benchmark e apre o crea un file CSV
-    std::cout << "\nAVVIO PIPELINE DI BENCHMARK" << std::endl;
-    std::ofstream csvFile("benchmark_results.csv");
-    if (csvFile.is_open()) {
-        csvFile << "Backend,Parametro,TempoMedio_ms,TempoMin_ms,TempoMax_ms,Speedup,Verificato\n";
-    }
-    //esegue pipeline sequenziale 5 volte e fa la media dei tempi
-    double sequentialTotalTime = 0.0;
-    std::vector<float> referenceOutput;
-    for (int r = 0; r < RUNS; ++r) {
-        auto startTiming = std::chrono::high_resolution_clock::now();
-        referenceOutput = runCPUImplementation(hostLuminance, size.x, size.y, threshold);
-        auto endTiming = std::chrono::high_resolution_clock::now();
-        sequentialTotalTime += std::chrono::duration<double, std::milli>(endTiming - startTiming).count();
-    }
-    sequentialTotalTime /= RUNS;
-
-    std::cout << "\nBaseline Sequenziale CPU: " << std::fixed << std::setprecision(2) << sequentialTotalTime << " ms" << std::endl;
-    // scrive i risultati della baseline sul file CSV
-    if (csvFile.is_open()) {
-        csvFile << "CPU_Sequenziale,1," << sequentialTotalTime << "," << sequentialTotalTime << "," << sequentialTotalTime << ",1.0,SI\n";
-    }
-    // funzione di verifica dell'output con i risultati di riferimento
-    auto checkMatch = [&](const std::vector<float>& targetBuffer) -> std::string {
-        for (size_t i = 0; i < totalPixels; ++i) {
-            if (std::abs(referenceOutput[i] - targetBuffer[i]) > 0.01f) return "NO";
-        }
-        return "SI";
+    // definisce i percorsi delle immagini con risoluzioni crescenti da testare
+    std::vector<std::string> imagePaths = {
+        "../images/input_512.png",
+        "../images/input_1024.png",
+        "../images/input_2048.png",
+        "../images/input_4096.png"
     };
-
-    std::vector<int> threadCounts = {12};
-    std::cout << "\nPerformance Multi Core OpenMP e SIMD" << std::endl;
-    std::cout << std::setw(10) << "Threads" << std::setw(15) << "Medio ms" << std::setw(12) << "Min ms" << std::setw(12) << "Max ms" << std::setw(12) << "Speedup" << std::setw(12) << "Match" << std::endl;
-    std::cout << "----------------------------------------------------------------------------" << std::endl;
-    // esegue pipeline OpenMP e calcola i tempi
-    for (int threads : threadCounts) {
-        double openmpTotalTime = 0.0, openmpMinTime = 999999.0, openmpMaxTime = 0.0;
-        std::vector<float> openmpOutput;
-        for (int r = 0; r < RUNS; ++r) {
-            auto startTiming = std::chrono::high_resolution_clock::now();
-            openmpOutput = runOpenMPImplementation(hostLuminance, size.x, size.y, threshold, threads);
-            auto endTiming = std::chrono::high_resolution_clock::now();
-            double duration = std::chrono::duration<double, std::milli>(endTiming - startTiming).count();
-            openmpTotalTime += duration;
-            openmpMinTime = std::min(openmpMinTime, duration);
-            openmpMaxTime = std::max(openmpMaxTime, duration);
-        }
-        double averageDuration = openmpTotalTime / RUNS;
-        // verifica l'output con i risultati di riferimento
-        std::string identityMatch = checkMatch(openmpOutput);
-        std::cout << std::setw(10) << threads << std::setw(15) << averageDuration << std::setw(12) << openmpMinTime << std::setw(12) << openmpMaxTime << std::setw(11) << (sequentialTotalTime / averageDuration) << "x" << std::setw(12) << identityMatch << std::endl;
-        // scrive i risultati su file CSV
-        if (csvFile.is_open()) {
-            csvFile << "CPU_OpenMP," << threads << "," << averageDuration << "," << openmpMinTime << "," << openmpMaxTime << "," << (sequentialTotalTime / averageDuration) << "," << identityMatch << "\n";
-        }
-    }
-
+    // definisce le diverse soglie da testare come parametri addizionali
+    std::vector<float> thresholds = { 0.0005f, 0.005f };
+    // definisce le configurazioni dei blocchi per la scheda video
     std::vector<std::pair<int, int>> blockSizes = {
         {16, 16}, {32, 32}, {32, 8}, {8, 32}, {64, 4}
     };
-    std::cout << "\nPerformance Scheda Video CUDA" << std::endl;
-    std::cout << std::setw(10) << "Blocco" << std::setw(15) << "Medio ms" << std::setw(12) << "Min ms" << std::setw(12) << "Max ms" << std::setw(12) << "Speedup" << std::setw(12) << "Match" << std::endl;
-    std::cout << "----------------------------------------------------------------------------" << std::endl;
-    // esegue pipeline CUDA con le varie configurazioni e calcola i tempi
-    for (auto executionBlock : blockSizes) {
-        double cudaTotalTime = 0.0, cudaMinTime = 999999.0, cudaMaxTime = 0.0;
-        std::vector<float> cudaOutput;
-        for (int r = 0; r < RUNS; ++r) {
-            auto startTiming = std::chrono::high_resolution_clock::now();
-            cudaOutput = runCudaSingleTest(hostLuminance, size.x, size.y, threshold, executionBlock.first, executionBlock.second);
-            auto endTiming = std::chrono::high_resolution_clock::now();
-            double duration = std::chrono::duration<double, std::milli>(endTiming - startTiming).count();
-            cudaTotalTime += duration;
-            cudaMinTime = std::min(cudaMinTime, duration);
-            cudaMaxTime = std::max(cudaMaxTime, duration);
+    std::vector<int> threadCounts = {12};
+
+    // avvia il benchmark e apre o crea un file CSV
+    std::cout << "\nAVVIO PIPELINE DI BENCHMARK AVANZATA" << std::endl;
+    std::ofstream csvFile("benchmark_results.csv");
+    if (csvFile.is_open()) {
+        // scrive l'intestazione del file CSV includendo risoluzione e deviazione standard
+        csvFile << "Risoluzione,Backend,Parametro,Soglia,TempoMedio_ms,TempoMin_ms,TempoMax_ms,DevStd_ms,Speedup,Verificato\n";
+    }
+
+    // esegue il ciclo principale sulle diverse risoluzioni delle immagini
+    for (const auto& imgPath : imagePaths) {
+        // carica l'immagine corrente da processare e calcola la luminanza e le dimensioni in pixel
+        sf::Image inputImage;
+        if (!inputImage.loadFromFile(imgPath)) {
+            std::cout << "Immagine non trovata, salto il test per: " << imgPath << std::endl;
+            continue;
         }
-        double averageDuration = cudaTotalTime / RUNS;
-        // verifica l'output con i risultati di riferimento
-        std::string identityMatch = checkMatch(cudaOutput);
-        std::string blockLabel = std::to_string(executionBlock.first) + "x" + std::to_string(executionBlock.second);
-        std::cout << std::setw(10) << blockLabel << std::setw(15) << averageDuration << std::setw(12) << cudaMinTime << std::setw(12) << cudaMaxTime << std::setw(11) << (sequentialTotalTime / averageDuration) << "x" << std::setw(12) << identityMatch << std::endl;
-        // scrive i risultati su file CSV
-        if (csvFile.is_open()) {
-            csvFile << "CUDA_SchedaVideo," << blockLabel << "," << averageDuration << "," << cudaMinTime << "," << cudaMaxTime << "," << (sequentialTotalTime / averageDuration) << "," << identityMatch << "\n";
+        sf::Vector2u size = inputImage.getSize();
+        size_t totalPixels = (size_t)size.x * size.y;
+        std::string resLabel = std::to_string(size.x) + "x" + std::to_string(size.y);
+
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "ELABORAZIONE RISOLUZIONE: " << resLabel << std::endl;
+        std::cout << "========================================" << std::endl;
+
+        std::vector<float> hostLuminance(totalPixels);
+        for (unsigned int y = 0; y < size.y; ++y) {
+            for (unsigned int x = 0; x < size.x; ++x) {
+                sf::Color color = inputImage.getPixel(x, y);
+                // calcola la luminanza del pixel estraendo i canali di colore
+                hostLuminance[(size_t)y * size.x + x] = (0.299f * color.r + 0.587f * color.g + 0.114f * color.b) / 255.0f;
+            }
+        }
+
+        // esegue il ciclo per testare le diverse configurazioni di soglia
+        for (float threshold : thresholds) {
+            std::cout << "\n--- Configurazione con Soglia: " << threshold << " ---" << std::endl;
+
+            // esegue pipeline sequenziale 5 volte e fa la media dei tempi
+            std::vector<double> seqTimes(RUNS);
+            std::vector<float> referenceOutput;
+            for (int r = 0; r < RUNS; ++r) {
+                auto startTiming = std::chrono::high_resolution_clock::now();
+                referenceOutput = runCPUImplementation(hostLuminance, size.x, size.y, threshold);
+                auto endTiming = std::chrono::high_resolution_clock::now();
+                seqTimes[r] = std::chrono::duration<double, std::milli>(endTiming - startTiming).count();
+            }
+            // calcola i tempi massimi, minimi, medi e la deviazione standard per la baseline
+            double seqMin = *std::min_element(seqTimes.begin(), seqTimes.end());
+            double seqMax = *std::max_element(seqTimes.begin(), seqTimes.end());
+            double seqAvg = std::accumulate(seqTimes.begin(), seqTimes.end(), 0.0) / RUNS;
+            double seqStdDev = calculateStdDev(seqTimes, seqAvg);
+
+            std::cout << "\nBaseline Sequenziale CPU: " << std::fixed << std::setprecision(2)
+                      << seqAvg << " ms (±" << seqStdDev << " ms)" << std::endl;
+            // scrive i risultati della baseline sul file CSV
+            if (csvFile.is_open()) {
+                csvFile << resLabel << ",CPU_Sequenziale,1," << threshold << "," << seqAvg << ","
+                        << seqMin << "," << seqMax << "," << seqStdDev << ",1.0,SI\n";
+            }
+
+            // funzione di verifica dell'output con i risultati di riferimento
+            auto checkMatch = [&](const std::vector<float>& targetBuffer) -> std::string {
+                for (size_t i = 0; i < totalPixels; ++i) {
+                    if (std::abs(referenceOutput[i] - targetBuffer[i]) > 0.01f) return "NO";
+                }
+                return "SI";
+            };
+
+            std::cout << "\nPerformance Multi Core OpenMP" << std::endl;
+            std::cout << std::setw(10) << "Threads" << std::setw(12) << "Medio ms" << std::setw(10) << "Min ms"
+                      << std::setw(10) << "Max ms" << std::setw(10) << "DevStd" << std::setw(10) << "Speedup" << std::setw(8) << "Match" << std::endl;
+            std::cout << "----------------------------------------------------------------------------------------" << std::endl;
+            // esegue pipeline OpenMP e calcola i tempi
+            for (int threads : threadCounts) {
+                std::vector<double> ompTimes(RUNS);
+                std::vector<float> openmpOutput;
+                for (int r = 0; r < RUNS; ++r) {
+                    auto startTiming = std::chrono::high_resolution_clock::now();
+                    openmpOutput = runOpenMPImplementation(hostLuminance, size.x, size.y, threshold, threads);
+                    auto endTiming = std::chrono::high_resolution_clock::now();
+                    ompTimes[r] = std::chrono::duration<double, std::milli>(endTiming - startTiming).count();
+                }
+                // calcola i parametri statistici e lo speedup per OpenMP
+                double ompMin = *std::min_element(ompTimes.begin(), ompTimes.end());
+                double ompMax = *std::max_element(ompTimes.begin(), ompTimes.end());
+                double ompAvg = std::accumulate(ompTimes.begin(), ompTimes.end(), 0.0) / RUNS;
+                double ompStdDev = calculateStdDev(ompTimes, ompAvg);
+                double ompSpeedup = seqAvg / ompAvg;
+                // verifica l'output con i risultati di riferimento
+                std::string identityMatch = checkMatch(openmpOutput);
+
+                std::cout << std::setw(10) << threads << std::setw(12) << ompAvg << std::setw(10) << ompMin
+                          << std::setw(10) << ompMax << std::setw(10) << ompStdDev << std::setw(9) << ompSpeedup << "x" << std::setw(8) << identityMatch << std::endl;
+                // scrive i risultati su file CSV
+                if (csvFile.is_open()) {
+                    csvFile << resLabel << ",CPU_OpenMP," << threads << "," << threshold << "," << ompAvg << ","
+                            << ompMin << "," << ompMax << "," << ompStdDev << "," << ompSpeedup << "," << identityMatch << "\n";
+                }
+            }
+
+            std::cout << "\nPerformance Scheda Video CUDA" << std::endl;
+            std::cout << std::setw(10) << "Blocco" << std::setw(12) << "Medio ms" << std::setw(10) << "Min ms"
+                      << std::setw(10) << "Max ms" << std::setw(10) << "DevStd" << std::setw(10) << "Speedup" << std::setw(8) << "Match" << std::endl;
+            std::cout << "----------------------------------------------------------------------------------------" << std::endl;
+            // esegue pipeline CUDA con le varie configurazioni e calcola i tempi
+            for (auto executionBlock : blockSizes) {
+                std::vector<double> cudaTimes(RUNS);
+                std::vector<float> cudaOutput;
+                for (int r = 0; r < RUNS; ++r) {
+                    auto startTiming = std::chrono::high_resolution_clock::now();
+                    cudaOutput = runCudaSingleTest(hostLuminance, size.x, size.y, threshold, executionBlock.first, executionBlock.second);
+                    auto endTiming = std::chrono::high_resolution_clock::now();
+                    cudaTimes[r] = std::chrono::duration<double, std::milli>(endTiming - startTiming).count();
+                }
+                // calcola i parametri statistici e lo speedup per CUDA
+                double cudaMin = *std::min_element(cudaTimes.begin(), cudaTimes.end());
+                double cudaMax = *std::max_element(cudaTimes.begin(), cudaTimes.end());
+                double cudaAvg = std::accumulate(cudaTimes.begin(), cudaTimes.end(), 0.0) / RUNS;
+                double cudaStdDev = calculateStdDev(cudaTimes, cudaAvg);
+                double cudaSpeedup = seqAvg / cudaAvg;
+                // verifica l'output con i risultati di riferimento
+                std::string identityMatch = checkMatch(cudaOutput);
+                std::string blockLabel = std::to_string(executionBlock.first) + "x" + std::to_string(executionBlock.second);
+
+                std::cout << std::setw(10) << blockLabel << std::setw(12) << cudaAvg << std::setw(10) << cudaMin
+                          << std::setw(10) << cudaMax << std::setw(10) << cudaStdDev << std::setw(9) << cudaSpeedup << "x" << std::setw(8) << identityMatch << std::endl;
+                // scrive i risultati su file CSV
+                if (csvFile.is_open()) {
+                    csvFile << resLabel << ",CUDA_SchedaVideo," << blockLabel << "," << threshold << "," << cudaAvg << ","
+                            << cudaMin << "," << cudaMax << "," << cudaStdDev << "," << cudaSpeedup << "," << identityMatch << "\n";
+                }
+            }
         }
     }
     // chiude il file CSV
@@ -117,23 +219,26 @@ void runBenchmark() {
 // esegue la pipeline GUI
 void runGUI() {
     // parametri iniziali
-    int blobRadius = 5;
-    // carica l'immagine e ne calcola la luminosità e dimensione in pixel
-    sf::Image inputImage; if (!inputImage.loadFromFile("../input.png")) return;
-    sf::Vector2u size = inputImage.getSize(); size_t totalPixels = (size_t)size.x * size.y;
+    int blobRadius = 4;
+    // carica la prima immagine della serie e ne calcola la luminosità e dimensione in pixel
+    sf::Image inputImage;
+    if (!inputImage.loadFromFile("../images/input_512.png")) return;
+    sf::Vector2u size = inputImage.getSize();
+    size_t totalPixels = (size_t)size.x * size.y;
 
     std::vector<float> hostLuminance(totalPixels);
     for (unsigned int y = 0; y < size.y; ++y) {
         for (unsigned int x = 0; x < size.x; ++x) {
             sf::Color color = inputImage.getPixel(x, y);
+            // calcola la luminanza del pixel estraendo i canali di colore
             hostLuminance[(size_t)y * size.x + x] = (0.299f * color.r + 0.587f * color.g + 0.114f * color.b) / 255.0f;
         }
     }
 
-    float threshold = 0.008f;
+    float threshold = 0.017f;
     // esegue la pipeline CUDA
     std::vector<float> blobMap = runCudaSingleTest(hostLuminance, size.x, size.y, threshold, 16, 16);
-    // crea l'immagine finale da quella inziiale ma riducendo la luminosità per dare contrasto ai blob
+    // crea l'immagine finale da quella iniziale ma riducendo la luminosità per dare contrasto ai blob
     sf::Image resultImage; resultImage.create(size.x, size.y);
     for (unsigned int y = 0; y < size.y; ++y) {
         for (unsigned int x = 0; x < size.x; ++x) {
@@ -162,7 +267,7 @@ void runGUI() {
             }
         }
     }
-    //salva l'immagine finale
+    // salva l'immagine finale
     resultImage.saveToFile("risultato_blobs.png");
     // crea la finestra e la texture
     sf::RenderWindow window(sf::VideoMode(size.x, size.y), "Risultato");
@@ -174,6 +279,8 @@ void runGUI() {
 }
 //main
 int main() {
+    // esegue il controllo preliminare e genera le risoluzioni mancanti prima di iniziare i test
+    checkAndGenerateImages();
     int choice;
     std::cout << "1. Pipeline Benchmark\n2. Finestra Grafica\nScelta: ";
     std::cin >> choice;

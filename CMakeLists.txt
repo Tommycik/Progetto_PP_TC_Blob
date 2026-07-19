@@ -47,7 +47,7 @@ set_target_properties(BlobDetection PROPERTIES
         CUDA_SEPARABLE_COMPILATION OFF
         CUDA_LINK_WITH_NVCC ON
 )
-# flag OpenMp e ottimizzazioni per host e device in modalità release
+# flag OpenMp e ottimizzazioni per host e device solo in modalità release
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(BlobDetection PRIVATE
             $<$<COMPILE_LANGUAGE:CXX>:-fopenmp $<$<CONFIG:Release>:-O3 -march=native>>

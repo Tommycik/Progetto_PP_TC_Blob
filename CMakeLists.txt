@@ -6,6 +6,10 @@ project(BlobDetectionCUDA LANGUAGES CUDA CXX)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 
+# forza la compilazione in modalità Release
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Scegli il tipo di build." FORCE)
+endif()
 
 # cerca il toolkit CUDA installato sul sistema
 find_package(CUDAToolkit REQUIRED)
@@ -43,7 +47,18 @@ set_target_properties(BlobDetection PROPERTIES
         CUDA_SEPARABLE_COMPILATION OFF
         CUDA_LINK_WITH_NVCC ON
 )
-
+# flag OpenMp e ottimizzazioni per host e device in modalità release
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(BlobDetection PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-fopenmp $<$<CONFIG:Release>:-O3 -march=native>>
+            $<$<COMPILE_LANGUAGE:CUDA>:$<$<CONFIG:Release>:-O3 -Xcompiler -O3,-march=native>>
+    )
+elseif(MSVC)
+    target_compile_options(BlobDetection PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:/openmp $<$<CONFIG:Release>:/O2 /Oi /Ot>>
+            $<$<COMPILE_LANGUAGE:CUDA>:$<$<CONFIG:Release>:-O3 -Xcompiler /O2,/Oi,/Ot>>
+    )
+endif()
 # link delle librerie
 target_link_libraries(BlobDetection
         PRIVATE

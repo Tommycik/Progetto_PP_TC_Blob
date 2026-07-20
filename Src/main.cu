@@ -7,6 +7,10 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
 #include <numeric>
+#ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN // Velocizza la compilazione escludendo cose inutili
+    #include <windows.h>
+#endif
 
 // calcola la deviazione standard dei tempi di esecuzione per valutare la stabilità
 double calculateStdDev(const std::vector<double>& times, double mean) {
@@ -61,6 +65,10 @@ void checkAndGenerateImages() {
 // benchmark
 void runBenchmark() {
     const int RUNS = 5;
+    //ottimizza il benchmark cosi da evitare l'interrompimento del sistema
+    #ifdef _WIN32
+        SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
+    #endif
     // definisce i percorsi delle immagini con risoluzioni crescenti da testare
     std::vector<std::string> imagePaths = {
         "../images/input_512.png",
@@ -69,10 +77,10 @@ void runBenchmark() {
         "../images/input_4096.png"
     };
     // definisce le diverse soglie da testare come parametri addizionali
-    std::vector<float> thresholds = { 0.0005f, 0.005f };
+    std::vector<float> thresholds = { 0.0005f, 0.005f, 0.017f, 0.05f};
     // definisce le configurazioni dei blocchi per la scheda video
     std::vector<std::pair<int, int>> blockSizes = {
-        {16, 16}, {32, 32}, {32, 8}, {8, 32}, {64, 4}
+        {8, 8}, {16, 16}, {32, 32}, {64, 16}, {16, 64}, {128, 8}, {8, 128}, {256, 4}, {4, 256}, {1024, 1}, {1, 1024}
     };
     std::vector<int> threadCounts = {12};
 
@@ -111,7 +119,7 @@ void runBenchmark() {
 
         // esegue il ciclo per testare le diverse configurazioni di soglia
         for (float threshold : thresholds) {
-            std::cout << "\n--- Configurazione con Soglia: " << threshold << " ---" << std::endl;
+            std::cout << "\n--- Configurazione con Soglia: " << std::fixed << std::setprecision(4) << threshold << " ---" << std::endl;
 
             // esegue pipeline sequenziale 5 volte e fa la media dei tempi
             std::vector<double> seqTimes(RUNS);
@@ -128,11 +136,11 @@ void runBenchmark() {
             double seqAvg = std::accumulate(seqTimes.begin(), seqTimes.end(), 0.0) / RUNS;
             double seqStdDev = calculateStdDev(seqTimes, seqAvg);
 
-            std::cout << "\nBaseline Sequenziale CPU: " << std::fixed << std::setprecision(2)
-                      << seqAvg << " ms (±" << seqStdDev << " ms)" << std::endl;
+            std::cout << "\nBaseline Sequenziale CPU: " << std::fixed << std::setprecision(4)
+                      << seqAvg << " ms (+-" << seqStdDev << " ms)" << std::endl;
             // scrive i risultati della baseline sul file CSV
             if (csvFile.is_open()) {
-                csvFile << resLabel << ",CPU_Sequenziale,1," << threshold << "," << seqAvg << ","
+                csvFile << resLabel << ",CPU_Sequenziale,1," << std::fixed << std::setprecision(4) << threshold << "," << seqAvg << ","
                         << seqMin << "," << seqMax << "," << seqStdDev << ",1.0,SI\n";
             }
 
@@ -167,11 +175,11 @@ void runBenchmark() {
                 // verifica l'output con i risultati di riferimento
                 std::string identityMatch = checkMatch(openmpOutput);
 
-                std::cout << std::setw(10) << threads << std::setw(12) << ompAvg << std::setw(10) << ompMin
+                std::cout << std::fixed << std::setprecision(4) << std::setw(10) << threads << std::setw(12) << ompAvg << std::setw(10) << ompMin
                           << std::setw(10) << ompMax << std::setw(10) << ompStdDev << std::setw(9) << ompSpeedup << "x" << std::setw(8) << identityMatch << std::endl;
                 // scrive i risultati su file CSV
                 if (csvFile.is_open()) {
-                    csvFile << resLabel << ",CPU_OpenMP," << threads << "," << threshold << "," << ompAvg << ","
+                    csvFile << std::fixed << std::setprecision(4) << resLabel << ",CPU_OpenMP," << threads << "," << threshold << "," << ompAvg << ","
                             << ompMin << "," << ompMax << "," << ompStdDev << "," << ompSpeedup << "," << identityMatch << "\n";
                 }
             }
@@ -200,11 +208,11 @@ void runBenchmark() {
                 std::string identityMatch = checkMatch(cudaOutput);
                 std::string blockLabel = std::to_string(executionBlock.first) + "x" + std::to_string(executionBlock.second);
 
-                std::cout << std::setw(10) << blockLabel << std::setw(12) << cudaAvg << std::setw(10) << cudaMin
+                std::cout << std::fixed << std::setprecision(4) << std::setw(10) << blockLabel << std::setw(12) << cudaAvg << std::setw(10) << cudaMin
                           << std::setw(10) << cudaMax << std::setw(10) << cudaStdDev << std::setw(9) << cudaSpeedup << "x" << std::setw(8) << identityMatch << std::endl;
                 // scrive i risultati su file CSV
                 if (csvFile.is_open()) {
-                    csvFile << resLabel << ",CUDA_SchedaVideo," << blockLabel << "," << threshold << "," << cudaAvg << ","
+                    csvFile << std::fixed << std::setprecision(4) << resLabel << ",CUDA_SchedaVideo," << blockLabel << "," << threshold << "," << cudaAvg << ","
                             << cudaMin << "," << cudaMax << "," << cudaStdDev << "," << cudaSpeedup << "," << identityMatch << "\n";
                 }
             }

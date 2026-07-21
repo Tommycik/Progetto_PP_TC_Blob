@@ -7,6 +7,7 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
 #include <numeric>
+
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN // Velocizza la compilazione escludendo cose inutili
     #include <windows.h>
@@ -15,12 +16,12 @@
 // calcola la deviazione standard dei tempi di esecuzione per valutare la stabilità
 double calculateStdDev(const std::vector<double>& times, double mean) {
     double sum = 0.0;
-    for (double t : times) {
-        sum += (t - mean) * (t - mean);
+    for (double time : times) {
+        sum += (time - mean) * (time - mean);
     }
     return std::sqrt(sum / times.size());
 }
-// controlla se esistono le immagini a risoluzione crescente e, se manca qualcosa, le genera a partire da quella 512x512
+// controlla se esistono le immagini a risoluzione crescente e se mancano le genera a partire da quella 512x512
 void checkAndGenerateImages() {
     sf::Image sourceImage;
     // prova a caricare l'immagine base da 512x512 pixel
@@ -62,6 +63,7 @@ void checkAndGenerateImages() {
         }
     }
 }
+
 // benchmark
 void runBenchmark() {
     const int RUNS = 5;
@@ -85,7 +87,7 @@ void runBenchmark() {
     std::vector<int> threadCounts = {12};
 
     // avvia il benchmark e apre o crea un file CSV
-    std::cout << "\nAVVIO PIPELINE DI BENCHMARK AVANZATA" << std::endl;
+    std::cout << "\nAvvio benchmark" << std::endl;
     std::ofstream csvFile("benchmark_results.csv");
     if (csvFile.is_open()) {
         // scrive l'intestazione del file CSV includendo risoluzione e deviazione standard
@@ -100,12 +102,13 @@ void runBenchmark() {
             std::cout << "Immagine non trovata, salto il test per: " << imgPath << std::endl;
             continue;
         }
+        // calcola le dimensioni dell'immagine e il numero totale di pixel
         sf::Vector2u size = inputImage.getSize();
         size_t totalPixels = (size_t)size.x * size.y;
         std::string resLabel = std::to_string(size.x) + "x" + std::to_string(size.y);
 
         std::cout << "\n========================================" << std::endl;
-        std::cout << "ELABORAZIONE RISOLUZIONE: " << resLabel << std::endl;
+        std::cout << "Risoluzione: " << resLabel << std::endl;
         std::cout << "========================================" << std::endl;
 
         std::vector<float> hostLuminance(totalPixels);
@@ -119,7 +122,7 @@ void runBenchmark() {
 
         // esegue il ciclo per testare le diverse configurazioni di soglia
         for (float threshold : thresholds) {
-            std::cout << "\n--- Configurazione con Soglia: " << std::fixed << std::setprecision(4) << threshold << " ---" << std::endl;
+            std::cout << "\n--- Configurazione con soglia: " << std::fixed << std::setprecision(4) << threshold << " ---" << std::endl;
 
             // esegue pipeline sequenziale 5 volte e fa la media dei tempi
             std::vector<double> seqTimes(RUNS);
@@ -136,7 +139,7 @@ void runBenchmark() {
             double seqAvg = std::accumulate(seqTimes.begin(), seqTimes.end(), 0.0) / RUNS;
             double seqStdDev = calculateStdDev(seqTimes, seqAvg);
 
-            std::cout << "\nBaseline Sequenziale CPU: " << std::fixed << std::setprecision(4)
+            std::cout << "\nBaseline sequenziale CPU: " << std::fixed << std::setprecision(4)
                       << seqAvg << " ms (+-" << seqStdDev << " ms)" << std::endl;
             // scrive i risultati della baseline sul file CSV
             if (csvFile.is_open()) {
@@ -152,7 +155,7 @@ void runBenchmark() {
                 return "SI";
             };
 
-            std::cout << "\nPerformance Multi Core OpenMP" << std::endl;
+            std::cout << "\nPerformance multi core OpenMP" << std::endl;
             std::cout << std::setw(10) << "Threads" << std::setw(12) << "Medio ms" << std::setw(10) << "Min ms"
                       << std::setw(10) << "Max ms" << std::setw(10) << "DevStd" << std::setw(10) << "Speedup" << std::setw(8) << "Match" << std::endl;
             std::cout << "----------------------------------------------------------------------------------------" << std::endl;
@@ -184,7 +187,7 @@ void runBenchmark() {
                 }
             }
 
-            std::cout << "\nPerformance Scheda Video CUDA" << std::endl;
+            std::cout << "\nPerformance CUDA" << std::endl;
             std::cout << std::setw(10) << "Blocco" << std::setw(12) << "Medio ms" << std::setw(10) << "Min ms"
                       << std::setw(10) << "Max ms" << std::setw(10) << "DevStd" << std::setw(10) << "Speedup" << std::setw(8) << "Match" << std::endl;
             std::cout << "----------------------------------------------------------------------------------------" << std::endl;

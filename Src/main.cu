@@ -1,7 +1,9 @@
 #include "Common.hpp"
 #include "CpuPipelines.hpp"
 #include "GpuPipelines.cuh"
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <iomanip>
 #include <fstream>
 #include <iostream>
@@ -41,7 +43,7 @@ void checkAndGenerateImages() {
         if (!checkImg.loadFromFile(targetPath)) {
             std::cout << "Generazione: Creazione immagine in corso: " << targetPath << std::endl;
 
-            // mappa i pixel per scalare l'immagine con una interpolazione bilineare
+            // mappa i pixel con campionamento nearest-neighbour
             sf::Image resizedImage;
             resizedImage.create(targetSize, targetSize);
 
@@ -91,7 +93,7 @@ void runBenchmark() {
     std::ofstream csvFile("benchmark_results.csv");
     if (csvFile.is_open()) {
         // scrive l'intestazione del file CSV includendo risoluzione e deviazione standard
-        csvFile << "Risoluzione,Backend,Parametro,Soglia,TempoMedio_ms,TempoMin_ms,TempoMax_ms,DevStd_ms,Speedup,Verificato\n";
+        csvFile << "Risoluzione,Backend,Parametro,Soglia,TempoMedio_ms,TempoMin_ms,TempoMax_ms,DevStd_ms,Speedup,Verificato,PixelDiversi,DifferenzaMassima\n";
     }
 
     // esegue il ciclo principale sulle diverse risoluzioni delle immagini
@@ -144,20 +146,35 @@ void runBenchmark() {
             // scrive i risultati della baseline sul file CSV
             if (csvFile.is_open()) {
                 csvFile << resLabel << ",CPU_Sequenziale,1," << std::fixed << std::setprecision(4) << threshold << "," << seqAvg << ","
-                        << seqMin << "," << seqMax << "," << seqStdDev << ",1.0,SI\n";
+                        << seqMin << "," << seqMax << "," << seqStdDev << ",1.0,SI,0,0.0\n";
             }
 
-            // funzione di verifica dell'output con i risultati di riferimento
-            auto checkMatch = [&](const std::vector<float>& targetBuffer) -> std::string {
+            // confronta l'intero output con il riferimento sequenziale.
+            // Oltre all'esito, conserva il numero di pixel differenti e la differenza massima,
+            // così un eventuale errore non viene ridotto a un semplice SI/NO.
+            struct VerificationResult {
+                bool matched;
+                size_t differentPixels;
+                float maximumDifference;
+            };
+
+            auto compareOutput = [&](const std::vector<float>& targetBuffer) -> VerificationResult {
+                constexpr float tolerance = 0.01f;
+                size_t differentPixels = 0;
+                float maximumDifference = 0.0f;
+
                 for (size_t i = 0; i < totalPixels; ++i) {
-                    if (std::abs(referenceOutput[i] - targetBuffer[i]) > 0.01f) return "NO";
+                    float difference = std::abs(referenceOutput[i] - targetBuffer[i]);
+                    maximumDifference = std::max(maximumDifference, difference);
+                    if (difference > tolerance) ++differentPixels;
                 }
-                return "SI";
+
+                return {differentPixels == 0, differentPixels, maximumDifference};
             };
 
             std::cout << "\nPerformance multi core OpenMP" << std::endl;
             std::cout << std::setw(10) << "Threads" << std::setw(12) << "Medio ms" << std::setw(10) << "Min ms"
-                      << std::setw(10) << "Max ms" << std::setw(10) << "DevStd" << std::setw(10) << "Speedup" << std::setw(8) << "Match" << std::endl;
+                      << std::setw(10) << "Max ms" << std::setw(10) << "DevStd" << std::setw(10) << "Speedup" << std::setw(8) << "Match" << std::setw(12) << "DiffPixel" << std::setw(12) << "MaxDiff" << std::endl;
             std::cout << "----------------------------------------------------------------------------------------" << std::endl;
             // esegue pipeline OpenMP e calcola i tempi
             for (int threads : threadCounts) {
@@ -176,20 +193,23 @@ void runBenchmark() {
                 double ompStdDev = calculateStdDev(ompTimes, ompAvg);
                 double ompSpeedup = seqAvg / ompAvg;
                 // verifica l'output con i risultati di riferimento
-                std::string identityMatch = checkMatch(openmpOutput);
+                VerificationResult verification = compareOutput(openmpOutput);
+                std::string identityMatch = verification.matched ? "SI" : "NO";
 
                 std::cout << std::fixed << std::setprecision(4) << std::setw(10) << threads << std::setw(12) << ompAvg << std::setw(10) << ompMin
-                          << std::setw(10) << ompMax << std::setw(10) << ompStdDev << std::setw(9) << ompSpeedup << "x" << std::setw(8) << identityMatch << std::endl;
+                          << std::setw(10) << ompMax << std::setw(10) << ompStdDev << std::setw(9) << ompSpeedup << "x" << std::setw(8) << identityMatch
+                          << std::setw(12) << verification.differentPixels << std::setw(12) << verification.maximumDifference << std::endl;
                 // scrive i risultati su file CSV
                 if (csvFile.is_open()) {
                     csvFile << std::fixed << std::setprecision(4) << resLabel << ",CPU_OpenMP," << threads << "," << threshold << "," << ompAvg << ","
-                            << ompMin << "," << ompMax << "," << ompStdDev << "," << ompSpeedup << "," << identityMatch << "\n";
+                            << ompMin << "," << ompMax << "," << ompStdDev << "," << ompSpeedup << "," << identityMatch << ","
+                            << verification.differentPixels << "," << verification.maximumDifference << "\n";
                 }
             }
 
             std::cout << "\nPerformance CUDA" << std::endl;
             std::cout << std::setw(10) << "Blocco" << std::setw(12) << "Medio ms" << std::setw(10) << "Min ms"
-                      << std::setw(10) << "Max ms" << std::setw(10) << "DevStd" << std::setw(10) << "Speedup" << std::setw(8) << "Match" << std::endl;
+                      << std::setw(10) << "Max ms" << std::setw(10) << "DevStd" << std::setw(10) << "Speedup" << std::setw(8) << "Match" << std::setw(12) << "DiffPixel" << std::setw(12) << "MaxDiff" << std::endl;
             std::cout << "----------------------------------------------------------------------------------------" << std::endl;
             // esegue pipeline CUDA con le varie configurazioni e calcola i tempi
             for (auto executionBlock : blockSizes) {
@@ -208,15 +228,18 @@ void runBenchmark() {
                 double cudaStdDev = calculateStdDev(cudaTimes, cudaAvg);
                 double cudaSpeedup = seqAvg / cudaAvg;
                 // verifica l'output con i risultati di riferimento
-                std::string identityMatch = checkMatch(cudaOutput);
+                VerificationResult verification = compareOutput(cudaOutput);
+                std::string identityMatch = verification.matched ? "SI" : "NO";
                 std::string blockLabel = std::to_string(executionBlock.first) + "x" + std::to_string(executionBlock.second);
 
                 std::cout << std::fixed << std::setprecision(4) << std::setw(10) << blockLabel << std::setw(12) << cudaAvg << std::setw(10) << cudaMin
-                          << std::setw(10) << cudaMax << std::setw(10) << cudaStdDev << std::setw(9) << cudaSpeedup << "x" << std::setw(8) << identityMatch << std::endl;
+                          << std::setw(10) << cudaMax << std::setw(10) << cudaStdDev << std::setw(9) << cudaSpeedup << "x" << std::setw(8) << identityMatch
+                          << std::setw(12) << verification.differentPixels << std::setw(12) << verification.maximumDifference << std::endl;
                 // scrive i risultati su file CSV
                 if (csvFile.is_open()) {
                     csvFile << std::fixed << std::setprecision(4) << resLabel << ",CUDA_SchedaVideo," << blockLabel << "," << threshold << "," << cudaAvg << ","
-                            << cudaMin << "," << cudaMax << "," << cudaStdDev << "," << cudaSpeedup << "," << identityMatch << "\n";
+                            << cudaMin << "," << cudaMax << "," << cudaStdDev << "," << cudaSpeedup << "," << identityMatch << ","
+                            << verification.differentPixels << "," << verification.maximumDifference << "\n";
                 }
             }
         }

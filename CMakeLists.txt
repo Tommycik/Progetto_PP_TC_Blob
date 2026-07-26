@@ -13,6 +13,7 @@ endif()
 
 # cerca il toolkit CUDA installato sul sistema
 find_package(CUDAToolkit REQUIRED)
+find_package(OpenMP REQUIRED)
 
 # SFML
 include(FetchContent)
@@ -47,16 +48,23 @@ set_target_properties(BlobDetection PROPERTIES
         CUDA_SEPARABLE_COMPILATION OFF
         CUDA_LINK_WITH_NVCC ON
 )
-# flag OpenMp e ottimizzazioni per host e device solo in modalità release
+# flag OpenMP e ottimizzazioni per host e device solo in modalità Release
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(BlobDetection PRIVATE
-            $<$<COMPILE_LANGUAGE:CXX>:-fopenmp $<$<CONFIG:Release>:-O3 -march=native>>
-            $<$<COMPILE_LANGUAGE:CUDA>:$<$<CONFIG:Release>:-O3 -Xcompiler -O3,-march=native>>
+            $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:-O3>
+            $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:-march=native>
+            $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:-fopenmp>
+            $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Release>>:-O3>
+            $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Release>>:-Xcompiler=-fopenmp,-O3,-march=native>
     )
 elseif(MSVC)
     target_compile_options(BlobDetection PRIVATE
-            $<$<COMPILE_LANGUAGE:CXX>:/openmp $<$<CONFIG:Release>:/O2 /Oi /Ot>>
-            $<$<COMPILE_LANGUAGE:CUDA>:$<$<CONFIG:Release>:-O3 -Xcompiler /O2,/Oi,/Ot>>
+            $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:/openmp>
+            $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:/O2>
+            $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:/Oi>
+            $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:/Ot>
+            $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Release>>:-O3>
+            $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CONFIG:Release>>:-Xcompiler=/openmp,/O2,/Oi,/Ot>
     )
 endif()
 # link delle librerie
@@ -66,6 +74,7 @@ target_link_libraries(BlobDetection
         sfml-window
         sfml-system
         CUDA::cudart
+        OpenMP::OpenMP_CXX
 )
 
 # copia automatica delle dll

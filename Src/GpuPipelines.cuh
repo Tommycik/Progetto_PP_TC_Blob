@@ -3,6 +3,7 @@
 
 #include "Common.hpp"
 #include "Kernels.cuh"
+#include <cmath>
 // Usa la gpu per trovare i blob
 std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, int imageWidth, int imageHeight, float threshold, int blockSizeX, int blockSizeY) {
     //calcola numero di pixel dell'immagine e il peso in byte
@@ -26,26 +27,26 @@ std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, in
     // calcola i gaussiani
     for (int i = 0; i < NUM_SCALES; ++i) {
         //raggio di sfocatura
-        float sigma = SIGMA_BASE * powf(K_FACTOR, i);
+        float sigma = SIGMA_BASE * std::pow(K_FACTOR, i);
         //calcola offset in memoria
         float* currentGaussTarget = deviceGaussians + ((size_t)i * totalPixels);
         // calcola i gaussiani in orizzontale e verticale
-        gaussianBlurHorizontalKernel<<<gridSize, blockSize>>>(i == 0 ? deviceLuminance : (deviceGaussians + ((size_t)(i - 1) * totalPixels)), deviceTemporary, imageWidth, imageHeight, sigma);
+        gaussianBlurHorizontalKernel<<<gridSize, blockSize>>>(deviceLuminance, deviceTemporary, imageWidth, imageHeight, sigma);
         gaussianBlurVerticalKernel<<<gridSize, blockSize>>>(deviceTemporary, currentGaussTarget, imageWidth, imageHeight, sigma);
     }
     //calcola i Dogs
     for (int i = 0; i < NUM_DOGS; ++i) computeDoGKernel<<<gridSize, blockSize>>>(deviceGaussians, deviceDogs, i, imageWidth, imageHeight);
     //trova i massimi
     findExtremaKernel<<<gridSize, blockSize>>>(deviceDogs, deviceExtremaMap, imageWidth, imageHeight, threshold, NUM_DOGS);
-    //esegue il Non-Maximum Suppression (Raggio 4 = Finestra 9x9)
+    //esegue il Non-Maximum Suppression (Raggio 2 = Finestra 5x5)
     int nmsRadius = 2;
     nmsKernel<<<gridSize, blockSize>>>(deviceExtremaMap, deviceOutput, imageWidth, imageHeight, nmsRadius);
     // alloca memoria per i dati di output
     std::vector<float> cudaOutput(totalPixels, 0.0f);
+    // attende il completamento di tutti i kernel prima di leggere il risultato
+    cudaDeviceSynchronize();
     // copia i risultati dal device all'host
     cudaMemcpy(cudaOutput.data(), deviceOutput, layerBytes, cudaMemcpyDeviceToHost);
-    // sincronizza il device
-    cudaDeviceSynchronize();
     // libera memoria sul device
     cudaFree(deviceLuminance);
     cudaFree(deviceTemporary);

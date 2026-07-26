@@ -88,9 +88,10 @@ __global__ void findExtremaKernel(const float* spaceDogs, float* outputMap, int 
                 }
             }
         }
-        // se è massimo o minimo, lo salva nella destinazione
+        // se è massimo o minimo, salva l'intensità assoluta del DoG.
+        // Questo valore viene poi usato dal NMS, come nelle versioni CPU e OpenMP.
         if (isMaximum || isMinimum) {
-            outputMap[pixelIndex] = 1.0f;
+            outputMap[pixelIndex] = fabsf(centerValue);
             break;
         }
     }

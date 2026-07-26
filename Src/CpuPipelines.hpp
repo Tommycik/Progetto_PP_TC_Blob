@@ -195,11 +195,14 @@ void ompGaussianBlur(const std::vector<float>& sourceImage, std::vector<float>& 
     int kernelRadius = ceilf(3.0f * sigma);
     // alloca memoria per il buffer temporaneo
     std::vector<float> temporaryBuffer((size_t)imageWidth * imageHeight);
-    //regione parallela
+
+    // Una singola regione parallela contiene entrambe le passate.
+    // La barriera implicita al termine del primo omp for garantisce che il
+    // buffer orizzontale sia completo prima dell'inizio della passata verticale.
     #pragma omp parallel
-    // parallelizza due for annidati e usa simd
-        #pragma omp for simd collapse(2)
+    {
         // sfocatura orizzontale
+        #pragma omp for simd collapse(2)
         for (int positionY = 0; positionY < imageHeight; ++positionY) {
             for (int positionX = 0; positionX < imageWidth; ++positionX) {
                 float pixelSum = 0.0f, totalWeight = 0.0f;
@@ -212,9 +215,9 @@ void ompGaussianBlur(const std::vector<float>& sourceImage, std::vector<float>& 
                 temporaryBuffer[(size_t)positionY * imageWidth + positionX] = pixelSum / totalWeight;
             }
         }
-        // parallelizza due for annidati e usa simd
-        #pragma omp for simd collapse(2)
+
         // sfocatura verticale
+        #pragma omp for simd collapse(2)
         for (int positionY = 0; positionY < imageHeight; ++positionY) {
             for (int positionX = 0; positionX < imageWidth; ++positionX) {
                 float pixelSum = 0.0f, totalWeight = 0.0f;
@@ -227,8 +230,8 @@ void ompGaussianBlur(const std::vector<float>& sourceImage, std::vector<float>& 
                 destinationImage[(size_t)positionY * imageWidth + positionX] = pixelSum / totalWeight;
             }
         }
+    }
 }
-
 
 // trova i blob in modo parallelo
 std::vector<float> runOpenMPImplementation(const std::vector<float>& hostLuminance, int imageWidth, int imageHeight, float threshold, int threads) {

@@ -38,8 +38,8 @@ std::vector<float> runCudaSingleTest(const std::vector<float>& hostLuminance, in
     for (int i = 0; i < NUM_DOGS; ++i) computeDoGKernel<<<gridSize, blockSize>>>(deviceGaussians, deviceDogs, i, imageWidth, imageHeight);
     //trova i massimi
     findExtremaKernel<<<gridSize, blockSize>>>(deviceDogs, deviceExtremaMap, imageWidth, imageHeight, threshold, NUM_DOGS);
-    //esegue il Non-Maximum Suppression (Raggio 2 = Finestra 5x5)
-    int nmsRadius = 2;
+    //esegue il Non-Maximum Suppression finestra 13 X 13
+    int nmsRadius = 6;
     nmsKernel<<<gridSize, blockSize>>>(deviceExtremaMap, deviceOutput, imageWidth, imageHeight, nmsRadius);
     // alloca memoria per i dati di output
     std::vector<float> cudaOutput(totalPixels, 0.0f);

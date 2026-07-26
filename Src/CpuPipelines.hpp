@@ -21,7 +21,7 @@ void cpuGaussianBlur(const std::vector<float>& sourceImage, std::vector<float>& 
                 //calcola peso in base alla distanza dal pixel centrale
                 float weight = std::exp(-(deltaX * deltaX) / (2.0f * sigma * sigma));
                 //calcola la somma pesata dei pixel adiacenti e la somma dei pesi
-                pixelSum += sourceImage[(size_t)positionY * imageWidth + neighborX] * weight; 
+                pixelSum += sourceImage[(size_t)positionY * imageWidth + neighborX] * weight;
                 totalWeight += weight;
             }
             //calcola il valore finale del pixel e lo salva nella destinazione temporanea
@@ -39,7 +39,7 @@ void cpuGaussianBlur(const std::vector<float>& sourceImage, std::vector<float>& 
                 //calcola peso in base alla distanza dal pixel centrale
                 float weight = std::exp(-(deltaY * deltaY) / (2.0f * sigma * sigma));
                 //calcola la somma pesata dei pixel adiacenti e la somma dei pesi
-                pixelSum += temporaryBuffer[(size_t)neighborY * imageWidth + positionX] * weight; 
+                pixelSum += temporaryBuffer[(size_t)neighborY * imageWidth + positionX] * weight;
                 totalWeight += weight;
             }
             //calcola il valore finale del pixel e lo salva nella destinazione finale
@@ -93,7 +93,7 @@ void applyOmpNMS(const std::vector<float>& inputMap, std::vector<float>& outputM
     // inizializza l'output a zero
     std::fill(outputMap.begin(), outputMap.end(), 0.0f);
     // esegue il ciclo in parallelo con openmp
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for schedule(static)
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             // calcola l'indice del pixel corrente
@@ -202,7 +202,7 @@ void ompGaussianBlur(const std::vector<float>& sourceImage, std::vector<float>& 
     #pragma omp parallel
     {
         // sfocatura orizzontale
-        #pragma omp for simd collapse(2)
+        #pragma omp for schedule(static)
         for (int positionY = 0; positionY < imageHeight; ++positionY) {
             for (int positionX = 0; positionX < imageWidth; ++positionX) {
                 float pixelSum = 0.0f, totalWeight = 0.0f;
@@ -217,7 +217,7 @@ void ompGaussianBlur(const std::vector<float>& sourceImage, std::vector<float>& 
         }
 
         // sfocatura verticale
-        #pragma omp for simd collapse(2)
+        #pragma omp for schedule(static)
         for (int positionY = 0; positionY < imageHeight; ++positionY) {
             for (int positionX = 0; positionX < imageWidth; ++positionX) {
                 float pixelSum = 0.0f, totalWeight = 0.0f;
@@ -251,14 +251,14 @@ std::vector<float> runOpenMPImplementation(const std::vector<float>& hostLuminan
         ompGaussianBlur(hostLuminance, scaleGaussians[i], imageWidth, imageHeight, sigma);
     }
     // calcola i Dogs in modo parallelo
-    #pragma omp parallel for simd collapse(2)
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < NUM_DOGS; ++i) {
         for (size_t j = 0; j < totalPixels; ++j) {
             scaleDogs[i][j] = scaleGaussians[i + 1][j] - scaleGaussians[i][j];
         }
     }
     // trova i blob in modo parallelo
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for schedule(static)
     for (int positionY = 1; positionY < imageHeight - 1; ++positionY) {
         for (int positionX = 1; positionX < imageWidth - 1; ++positionX) {
             // calcola l'indice del pixel

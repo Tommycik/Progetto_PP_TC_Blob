@@ -184,8 +184,8 @@ std::vector<float> runCPUImplementation(const std::vector<float>& hostLuminance,
             }
         }
     }
-    //esegue il Non-Maximum Suppression (Raggio 2 = Finestra 5x5)
-    int nmsRadius = 2;
+    //esegue il Non-Maximum Suppression (Finestra 13x13)
+    int nmsRadius = 6;
     applyCpuNMS(extremaMap, referenceOutput, imageWidth, imageHeight, nmsRadius);
     return referenceOutput;
 }
@@ -291,8 +291,8 @@ std::vector<float> runOpenMPImplementation(const std::vector<float>& hostLuminan
             }
         }
     }
-    //esegue il Non-Maximum Suppression (Raggio 2 = Finestra 5x5)
-    int nmsRadius = 2;
+    //esegue il Non-Maximum Suppression (Finestra 13x13)
+    int nmsRadius = 6;
     applyOmpNMS(extremaMap, openmpOutput, imageWidth, imageHeight, nmsRadius);
     return openmpOutput;
 }

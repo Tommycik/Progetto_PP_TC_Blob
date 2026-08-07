@@ -15,7 +15,7 @@ The main stages are:
 1. Load the input image and convert RGB values to normalized luminance.
 2. Generate several Gaussian-blurred images with increasing sigma values.
 3. Subtract consecutive Gaussian images to build the Difference of Gaussian maps.
-4. Search the three-dimensional neighbourhood formed by position and scale.
+4. Search the three-dimensional neighborhood formed by position and scale.
 5. Reject responses whose absolute value is below the selected threshold.
 6. Store the strength of local extrema.
 7. Apply spatial non-maximum suppression.
@@ -56,7 +56,7 @@ images/input_2048.png
 images/input_4096.png
 ```
 
-If the larger files are missing, they are generated from the 512 by 512 base image. The generated images are used to study resolution scaling with the same source content.
+If the larger files are missing,  they are generated from the 512 by 512 base image. The generated images are used to study resolution scaling with the same source content.
 
 ## Graphical mode
 

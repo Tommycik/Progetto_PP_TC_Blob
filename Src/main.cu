@@ -92,7 +92,7 @@ void runBenchmark() {
     std::cout << "\nAvvio benchmark" << std::endl;
     std::ofstream csvFile("benchmark_results.csv");
     if (csvFile.is_open()) {
-        // scrive l'intestazione del file CSV includendo risoluzione e deviazione standard
+        // scrive l'intestazione del file CSV
         csvFile << "Risoluzione,Backend,Parametro,Soglia,TempoMedio_ms,TempoMin_ms,TempoMax_ms,DevStd_ms,Speedup,Verificato,PixelDiversi,DifferenzaMassima\n";
     }
 
@@ -150,8 +150,7 @@ void runBenchmark() {
             }
 
             // confronta l'intero output con il riferimento sequenziale.
-            // Oltre all'esito, conserva il numero di pixel differenti e la differenza massima,
-            // così un eventuale errore non viene ridotto a un semplice SI/NO.
+            // Oltre all'esito conserva il numero di pixel differenti e la differenza massima,
             struct VerificationResult {
                 bool matched;
                 size_t differentPixels;

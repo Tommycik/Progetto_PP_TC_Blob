@@ -45,11 +45,11 @@ __global__ void gaussianBlurVerticalKernel(const float* sourceImage, float* dest
 }
 // calcola i DoGs
 __global__ void computeDoGKernel(const float* spaceGaussians, float* spaceDogs, int layerIndex, int imageWidth, int imageHeight) {
-    // calcola posizione del pixel e evita accessi illegali alla memoria
+    // calcola la posizione e evita accessi illegali alla memoria
     int positionX = blockIdx.x * blockDim.x + threadIdx.x;
     int positionY = blockIdx.y * blockDim.y + threadIdx.y;
     if (positionX >= imageWidth || positionY >= imageHeight) return;
-    // calcola l'indice del pixel e la dimensione in pixel dell'immagine
+    // calcola l'indice e la dimensione in pixel dell'immagine
     size_t layerStride = (size_t)imageWidth * imageHeight;
     size_t pixelIndex = (size_t)positionY * imageWidth + positionX;
     // calcola il valore della differenza tra i gaussiani adiacenti
@@ -63,7 +63,7 @@ __global__ void findExtremaKernel(const float* spaceDogs, float* outputMap, int 
     int positionX = blockIdx.x * blockDim.x + threadIdx.x;
     int positionY = blockIdx.y * blockDim.y + threadIdx.y;
     if (positionX <= 0 || positionX >= imageWidth - 1 || positionY <= 0 || positionY >= imageHeight - 1) return;
-    // calcola l'indice del pixel e la dimensione in pixel dell'immagine
+    // calcola l'indice e la dimensione in pixel dell'immagine
     size_t layerStride = (size_t)imageWidth * imageHeight;
     size_t pixelIndex = (size_t)positionY * imageWidth + positionX;
     // cicla sui livelli validi
@@ -88,8 +88,8 @@ __global__ void findExtremaKernel(const float* spaceDogs, float* outputMap, int 
                 }
             }
         }
-        // se è massimo o minimo, salva l'intensità assoluta del DoG.
-        // Questo valore viene poi usato dal NMS, come nelle versioni CPU e OpenMP.
+        // se è massimo o minimo salva l'intensità assoluta del pixel.
+        // Questo valore viene poi usato dal NMS.
         if (isMaximum || isMinimum) {
             outputMap[pixelIndex] = fabsf(centerValue);
             break;

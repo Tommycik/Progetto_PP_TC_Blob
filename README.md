@@ -2,9 +2,9 @@
 
 ## Project overview
 
-This project implements a multi-scale blob detector and compares three execution paths. The first path is sequential CPU. The second path parallelizes the CPU stages with OpenMP. The third path executes the same main pipeline on a CUDA-capable GPU.
+This project implements a multi-scale blob detector and compares three execution paths. The paths are sequential CPU,OpenMP and CUDA.
 
-The detector builds a Gaussian scale space and calculates Difference of Gaussian maps. Candidate pixels are selected by comparing each response with the neighbours in the current, previous and next scale. A threshold removes weak responses before the complete neighbourhood test. Non-maximum suppression is then used to keep only the strongest spatial detections.
+The detector builds a Gaussian scale space and calculates Difference of Gaussian maps. Candidate pixels are selected by comparing each response with the neighbours in the current, previous and next scale while a bthreshold removes weak responses before the complete neighbourhood test. Non-maximum suppression is then used to keep only the strongest spatial detections.
 
 The project is designed both as an image-processing application and as a parallel-computing benchmark. It measures the effect of image resolution, threshold, OpenMP execution and CUDA block geometry.
 
@@ -15,8 +15,8 @@ The main stages are:
 1. Load the input image and convert RGB values to normalized luminance.
 2. Generate several Gaussian-blurred images with increasing sigma values.
 3. Subtract consecutive Gaussian images to build the Difference of Gaussian maps.
-4. Search the three-dimensional neighborhood formed by position and scale.
-5. Reject responses whose absolute value is below the selected threshold.
+4. Reject responses whose absolute value is below the selected threshold.
+5. Search the three-dimensional neighborhood formed by position and scale.
 6. Store the strength of local extrema.
 7. Apply spatial non-maximum suppression.
 8. Return a binary map containing the final blob locations.
@@ -56,7 +56,7 @@ images/input_2048.png
 images/input_4096.png
 ```
 
-If the larger files are missing,  they are generated from the 512 by 512 base image. The generated images are used to study resolution scaling with the same source content.
+If the larger files are missing they are generated from the 512 by 512 base image. The generated images are used to study resolution scaling with the same source content.
 
 ## Graphical mode
 
@@ -178,8 +178,8 @@ Scelta:
 
 Choose option 1 to generate the CSV. Choose option 2 to create and display `risultato_blobs.png`.
 
-## Result interpretation
+## Results interpretation
 
-The benchmark contains two different comparisons. OpenMP speedup shows the benefit of CPU thread parallelism. CUDA speedup includes the effect of GPU execution and the timing scope implemented by the project. Block-shape results must be compared at the same resolution and threshold.
+The benchmark contains two different comparisons. OpenMP speedup shows the benefit of OpenMP parallelism. CUDA speedup includes the effect of the GPU faster execution but also of the overhead. Block-shape results must be compared at the same resolution and threshold.
 
 A faster block layout at one resolution is not automatically the best layout for every workload. Image dimensions, occupancy, memory access direction and fixed launch overhead can change the preferred configuration.

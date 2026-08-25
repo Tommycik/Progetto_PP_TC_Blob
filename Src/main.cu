@@ -306,8 +306,13 @@ void runGUI() {
     sf::RenderWindow window(sf::VideoMode(size.x, size.y), "Risultato");
     sf::Texture texture; texture.loadFromImage(resultImage); sf::Sprite sprite(texture);
     while (window.isOpen()) {
-        sf::Event event; while (window.pollEvent(event)) { if (event.type == sf::Event::Closed) window.close(); }
-        window.clear(); window.draw(sprite); window.display();
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) window.close();
+        }
+        window.clear();
+        window.draw(sprite);
+        window.display();
     }
 }
 //main

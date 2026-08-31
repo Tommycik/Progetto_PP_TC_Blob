@@ -4,7 +4,7 @@
 
 This project implements a multi-scale blob detector and compares three execution paths. The paths are sequential CPU,OpenMP and CUDA.
 
-The detector builds a Gaussian scale space and calculates Difference of Gaussian maps. Candidate pixels are selected by comparing each response with the neighbours in the current, previous and next scale while a bthreshold removes weak responses before the complete neighbourhood test. Non-maximum suppression is then used to keep only the strongest spatial detections.
+The detector builds a Gaussian scale space and calculates Difference of Gaussian maps. Candidate pixels are selected by comparing each response with the neighbours in the current, previous and next scale while a threshold removes weak responses before the complete neighbourhood test. Non-maximum suppression is then used to keep only the strongest spatial detections.
 
 The project is designed both as an image-processing application and as a parallel-computing benchmark. It measures the effect of image resolution, threshold, OpenMP execution and CUDA block geometry.
 

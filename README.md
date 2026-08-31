@@ -180,6 +180,6 @@ Choose option 1 to generate the CSV. Choose option 2 to create and display `risu
 
 ## Results interpretation
 
-The benchmark contains two different comparisons. OpenMP speedup shows the benefit of OpenMP parallelism. CUDA speedup includes the effect of the GPU faster execution but also of the overhead. Block-shape results must be compared at the same resolution and threshold.
+The benchmark contains two different comparisons. OpenMP speedup shows the benefit of OpenMP parallelism. CUDA speedup includes the effect of the GPU faster execution but also of its overhead. Block-shape results must be compared at the same resolution and threshold.
 
 A faster block layout at one resolution is not automatically the best layout for every workload. Image dimensions, occupancy, memory access direction and fixed launch overhead can change the preferred configuration.

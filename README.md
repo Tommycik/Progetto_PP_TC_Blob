@@ -166,7 +166,7 @@ The current CMake file uses CUDA architecture 75. Change `CUDA_ARCHITECTURES` on
 2. Select the compiler and CUDA toolkit used by the project.
 3. Use the Release configuration.
 4. Wait for CMake to configure SFML, OpenMP and CUDA.
-5. Select and run the `BlobDetection` target.
+5. Select and run the target.
 
 No command-line arguments are required. The application displays:
 
